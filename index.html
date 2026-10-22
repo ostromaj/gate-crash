@@ -3,14 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
 <title>Gate Crash</title>
-<meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;700&family=Silkscreen:wght@400;700&display=swap">
 <style>
-/* Layout: one console column. Status strip, order rail, the foundry floor (canvas), then controls and rules.
+/* Layout: one console column. Status strip, order rail, setup/lobby/results panel, the foundry floor (canvas), then rules.
    One committed dark PCB look: solder-mask green board, copper traces, white silkscreen labels. Amber = 1, cyan = 0. */
 :root{
   --board:#0a2321;
@@ -28,24 +26,34 @@
   --gremlin:#ff4fa8;
   --p1:#b9a2ff;
   --p2:#c8f26e;
+  --p3:#f4f1ea;
+  --p4:#7aa2ff;
   --display:"Silkscreen","Courier New",monospace;
   --body:"Chakra Petch","Segoe UI",system-ui,sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   color-scheme:dark;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
 }
+*{box-sizing:border-box;}
+[hidden]{display:none!important;}
 html,body{background:var(--board);color:var(--silk);}
-body{font-family:var(--body);font-size:15px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 32px;}
+body{margin:0;font-family:var(--body);font-size:15px;line-height:1.45;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:18px 32px;}
 .wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:12px;}
 header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:6px 16px;}
 h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,7vw,48px);line-height:.95;margin:0;letter-spacing:.02em;text-wrap:balance;}
 h1 span{color:var(--one);}
 h2{font-family:var(--display);font-weight:700;font-size:20px;margin:0;letter-spacing:.03em;text-wrap:balance;}
+h3{font-family:var(--display);font-weight:700;font-size:15px;margin:0;letter-spacing:.04em;}
 .tag{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
 
 button{font-family:var(--body);font-weight:600;font-size:15px;color:var(--silk);background:var(--chip);border:1px solid var(--edge);border-radius:4px;padding:8px 14px;cursor:pointer;}
 button:hover{border-color:var(--copper);}
 button:disabled{opacity:.4;cursor:default;}
 button.primary{background:var(--one);color:var(--sunk);border-color:var(--one);font-weight:700;letter-spacing:.02em;}
+input[type=text]{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--silk);background:var(--sunk);border:1px solid var(--edge);border-radius:4px;padding:8px 10px;min-width:0;}
+input[type=text]::placeholder{color:var(--muted);opacity:.6;}
+input[type=text]:focus{outline:none;border-color:var(--zero);}
 button:focus-visible,canvas:focus-visible,.seg input:focus-visible + span{outline:2px solid var(--zero);outline-offset:2px;}
 
 /* status strip */
@@ -82,14 +90,17 @@ button:focus-visible,canvas:focus-visible,.seg input:focus-visible + span{outlin
 .order.done{border-color:var(--ok);transform:translateY(-8px);opacity:0;}
 .order.gone{border-color:var(--danger);transform:scale(.9);opacity:0;}
 
-/* setup + results */
+/* panels */
 .panel{background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding-block:18px;padding-inline:18px;display:flex;flex-direction:column;gap:14px;}
-.panel p{margin:0;max-width:62ch;color:var(--silk);}
-.panel .note{color:var(--muted);font-size:14px;}
+.panel p{margin:0;max-width:62ch;}
+.note{color:var(--muted);font-size:14px;}
+.msg{min-height:1.4em;font-weight:600;}
+.msg.err{color:var(--danger);}
+.msg.ok{color:var(--ok);}
 .opts{display:flex;flex-wrap:wrap;gap:14px 24px;}
 fieldset{border:0;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;min-width:0;}
 legend{padding:0;margin-bottom:6px;}
-.seg{display:flex;flex-wrap:wrap;gap:0;}
+.seg{display:flex;flex-wrap:wrap;}
 .seg label{position:relative;}
 .seg input{position:absolute;opacity:0;width:1px;height:1px;}
 .seg span{display:block;padding:7px 12px;border:1px solid var(--edge);margin-left:-1px;background:var(--chip);cursor:pointer;font-weight:600;font-size:14px;}
@@ -97,6 +108,29 @@ legend{padding:0;margin-bottom:6px;}
 .seg label:last-child span{border-radius:0 4px 4px 0;}
 .seg input:checked + span{background:var(--copper);border-color:var(--copper);color:var(--sunk);}
 .actions{display:flex;flex-wrap:wrap;gap:8px;}
+
+.modes{display:flex;gap:0;border-bottom:1px solid var(--edge);}
+.modes button{background:none;border:0;border-bottom:3px solid transparent;border-radius:0;padding:6px 14px 8px;color:var(--muted);font-family:var(--display);font-size:13px;letter-spacing:.06em;}
+.modes button[aria-selected=true]{color:var(--silk);border-bottom-color:var(--one);}
+.field{display:flex;flex-direction:column;gap:6px;max-width:260px;}
+.split{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;}
+.box{background:var(--chip);border:1px solid var(--edge);border-radius:6px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0;}
+.row{display:flex;gap:8px;}
+#codeIn{width:7.5ch;text-transform:uppercase;letter-spacing:.2em;font-size:20px;}
+
+/* lobby */
+.lobby-top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px 24px;}
+.code{font-family:var(--mono);font-weight:700;font-size:clamp(40px,10vw,64px);letter-spacing:.18em;line-height:1;color:var(--one);}
+.link-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-width:0;}
+.link-row code{font-family:var(--mono);font-size:13px;color:var(--silk);background:var(--sunk);border:1px solid var(--edge);border-radius:4px;padding:6px 8px;overflow-wrap:anywhere;}
+.roster{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:8px;}
+.roster li{display:flex;align-items:center;gap:10px;background:var(--chip);border:1px solid var(--edge);border-radius:6px;padding:10px 12px;min-width:0;}
+.roster li.open{border-style:dashed;color:var(--muted);}
+.dot{width:16px;height:16px;border-radius:50%;flex:none;background:var(--edge);}
+.roster .who{display:flex;flex-direction:column;min-width:0;}
+.roster .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.roster .sub{font-size:12px;color:var(--muted);}
+
 .leds{display:flex;gap:8px;align-items:center;}
 .led{width:22px;height:22px;border-radius:50%;background:var(--sunk);border:2px solid var(--edge);}
 .led.on{background:var(--one);border-color:var(--one);box-shadow:0 0 12px var(--one);}
@@ -104,11 +138,15 @@ legend{padding:0;margin-bottom:6px;}
 .results-grid div{background:var(--chip);border:1px solid var(--edge);border-radius:4px;padding:8px 10px;}
 .results-grid dt{font-family:var(--display);font-size:10px;letter-spacing:.08em;color:var(--muted);}
 .results-grid dd{margin:0;font-family:var(--mono);font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;}
+.team{display:flex;flex-wrap:wrap;gap:8px;}
+.team span{display:flex;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--edge);border-radius:4px;padding:6px 10px;font-size:14px;}
+.team b{font-family:var(--mono);}
 
 /* floor */
 .stage{position:relative;width:100%;max-width:100%;aspect-ratio:16/10;border:1px solid var(--edge);border-radius:6px;overflow:hidden;background:var(--board);}
 canvas{display:block;width:100%;height:100%;touch-action:none;}
 .pause{position:absolute;inset:0;display:flex;flex-direction:column;gap:12px;align-items:center;justify-content:center;background:rgba(6,22,20,.82);text-align:center;padding:12px;}
+.toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);background:var(--sunk);border:1px solid var(--edge);border-radius:4px;padding:6px 12px;font-size:14px;}
 
 /* touch controls */
 .touch{display:none;justify-content:space-between;align-items:center;gap:16px;user-select:none;-webkit-user-select:none;}
@@ -117,12 +155,11 @@ canvas{display:block;width:100%;height:100%;touch-action:none;}
 .knob{position:absolute;left:50%;top:50%;width:52px;height:52px;margin:-26px 0 0 -26px;border-radius:50%;background:var(--p1);opacity:.85;pointer-events:none;}
 .grab{width:112px;height:112px;border-radius:50%;font-family:var(--display);font-size:18px;background:var(--one);color:var(--sunk);border:0;touch-action:none;flex:none;}
 
-/* controls legend */
+/* rules */
 .legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;}
 .legend section{background:var(--panel);border:1px solid var(--edge);border-radius:6px;padding:10px 12px;display:flex;flex-direction:column;gap:6px;min-width:0;}
 .legend ul{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px;font-size:14px;}
 kbd{font-family:var(--mono);font-size:12px;background:var(--chip);border:1px solid var(--edge);border-bottom-width:2px;border-radius:3px;padding:0 5px;}
-.who1{color:var(--p1);} .who2{color:var(--p2);}
 
 @media (max-width:600px){
   .hud{grid-template-columns:auto auto minmax(0,1fr);}
@@ -134,15 +171,14 @@ kbd{font-family:var(--mono);font-size:12px;background:var(--chip);border:1px sol
 </style>
 </head>
 <body>
-
 <div class="wrap">
   <header>
     <h1>GATE <span>CRASH</span></h1>
-    <div class="tag">A1.2 · Logic Foundry · Act 1 prototype</div>
+    <div class="tag">A1.2 · Logic Foundry · Act 1</div>
   </header>
 
   <div class="hud" id="hud">
-    <div class="stat"><span class="label">Shift left</span><b id="time">8:00</b></div>
+    <div class="stat"><span class="label">Shift left</span><b id="time">3:00</b></div>
     <div class="stat"><span class="label">Score</span><b id="score">0</b></div>
     <div class="meter" id="meter">
       <div class="meter-head"><span class="label">Null Meter</span><b id="meterPct">0%</b></div>
@@ -158,56 +194,131 @@ kbd{font-family:var(--mono);font-size:12px;background:var(--chip);border:1px sol
     <div class="empty-rail" id="noOrders">Orders show up here once the shift starts.</div>
   </div>
 
+  <!-- start screen -->
   <section class="panel" id="setup">
-    <h2>Act 1: single bits</h2>
-    <p>Grab bits from the sources, feed them through the gate machines, and deliver what each order asks for. A bit only counts if a gate made it, so raw bits get rejected at the window.</p>
-    <div class="opts">
-      <fieldset>
-        <legend class="label">Players</legend>
-        <div class="seg">
-          <label><input type="radio" name="players" id="pl1" value="1" checked><span>Solo</span></label>
-          <label><input type="radio" name="players" id="pl2" value="2"><span>2 on one keyboard</span></label>
+    <div class="modes" role="tablist">
+      <button type="button" role="tab" id="tabOnline" aria-selected="true" aria-controls="paneOnline">Play online</button>
+      <button type="button" role="tab" id="tabLocal" aria-selected="false" aria-controls="paneLocal">Same keyboard</button>
+    </div>
+
+    <div id="paneOnline" role="tabpanel" aria-labelledby="tabOnline">
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p>One computer hosts and gets a room code. Up to 3 more players join from their own computers with that code.</p>
+        <div class="field">
+          <label class="label" for="nameIn">Your name</label>
+          <input type="text" id="nameIn" maxlength="10" autocomplete="off" spellcheck="false" placeholder="e.g. Maya">
         </div>
-      </fieldset>
+        <div class="split">
+          <div class="box">
+            <h3>Host a room</h3>
+            <p class="note">Your computer runs the game. Keep this tab open and in front while you play.</p>
+            <div class="actions"><button type="button" class="primary" id="hostBtn">Host a game</button></div>
+          </div>
+          <div class="box">
+            <h3>Join a room</h3>
+            <label class="label" for="codeIn">Room code</label>
+            <div class="row">
+              <input type="text" id="codeIn" maxlength="4" autocomplete="off" spellcheck="false" placeholder="ABCD">
+              <button type="button" class="primary" id="joinBtn">Join</button>
+            </div>
+          </div>
+        </div>
+        <p class="msg" id="onlineMsg" role="status"></p>
+      </div>
+    </div>
+
+    <div id="paneLocal" role="tabpanel" aria-labelledby="tabLocal" hidden>
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <p>Play on this computer only: solo, or two players sharing the keyboard.</p>
+        <div class="opts">
+          <fieldset>
+            <legend class="label">Players</legend>
+            <div class="seg">
+              <label><input type="radio" name="players" id="pl1" value="1" checked><span>Solo</span></label>
+              <label><input type="radio" name="players" id="pl2" value="2"><span>2 on one keyboard</span></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend class="label">Shift length</legend>
+            <div class="seg">
+              <label><input type="radio" name="len" id="len3" value="180" checked><span>3 min test</span></label>
+              <label><input type="radio" name="len" id="len8" value="480"><span>8 min Act 1</span></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend class="label">Truth tables</legend>
+            <div class="seg">
+              <label><input type="radio" name="tables" id="tbOn" value="on" checked><span>Printed</span></label>
+              <label><input type="radio" name="tables" id="tbOff" value="off"><span>Hidden</span></label>
+            </div>
+          </fieldset>
+        </div>
+        <div class="actions"><button type="button" class="primary" id="startBtn">Start shift</button></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- online lobby -->
+  <section class="panel" id="lobby" hidden>
+    <div class="lobby-top">
+      <div>
+        <span class="label">Room code</span>
+        <div class="code" id="roomCode">----</div>
+      </div>
+      <div class="link-row">
+        <code id="roomLink"></code>
+        <button type="button" id="copyBtn">Copy link</button>
+      </div>
+    </div>
+    <ul class="roster" id="roster"></ul>
+    <div class="opts" id="hostOpts">
       <fieldset>
         <legend class="label">Shift length</legend>
         <div class="seg">
-          <label><input type="radio" name="len" id="len3" value="180" checked><span>3 min test</span></label>
-          <label><input type="radio" name="len" id="len8" value="480"><span>8 min Act 1</span></label>
+          <label><input type="radio" name="olen" id="olen3" value="180" checked><span>3 min test</span></label>
+          <label><input type="radio" name="olen" id="olen8" value="480"><span>8 min Act 1</span></label>
         </div>
       </fieldset>
       <fieldset>
         <legend class="label">Truth tables</legend>
         <div class="seg">
-          <label><input type="radio" name="tables" id="tbOn" value="on" checked><span>Printed</span></label>
-          <label><input type="radio" name="tables" id="tbOff" value="off"><span>Hidden</span></label>
+          <label><input type="radio" name="otables" id="otbOn" value="on" checked><span>Printed</span></label>
+          <label><input type="radio" name="otables" id="otbOff" value="off"><span>Hidden</span></label>
         </div>
       </fieldset>
     </div>
-    <div class="actions"><button type="button" class="primary" id="startBtn">Start shift</button></div>
-    <p class="note">Online 4-player comes in the next build. This one is for testing the feel.</p>
+    <p class="note" id="lobbyNote"></p>
+    <div class="actions">
+      <button type="button" class="primary" id="lobbyStart">Start shift</button>
+      <button type="button" id="leaveBtn">Leave room</button>
+    </div>
   </section>
 
+  <!-- results -->
   <section class="panel" id="results" hidden>
     <h2 id="resTitle">Shift complete</h2>
     <p id="resSub"></p>
     <div class="leds" id="leds" aria-label="Rating"><span class="label">Rating</span><i class="led"></i><i class="led"></i><i class="led"></i></div>
     <dl class="results-grid" id="resGrid"></dl>
+    <div class="team" id="resTeam"></div>
+    <p class="note" id="resNote" hidden>Waiting for the host to start the next shift.</p>
     <div class="actions">
       <button type="button" class="primary" id="againBtn">Play again</button>
       <button type="button" id="settingsBtn">Change settings</button>
+      <button type="button" id="resLeaveBtn" hidden>Leave room</button>
     </div>
   </section>
 
   <div class="stage" id="stage">
     <canvas id="floor" tabindex="0" aria-label="Gate Crash factory floor"></canvas>
     <div class="pause" id="pauseOv" hidden>
-      <h2>Paused</h2>
-      <div class="actions">
+      <h2 id="pauseTitle">Paused</h2>
+      <div class="actions" id="pauseActs">
         <button type="button" class="primary" id="resumeBtn">Resume</button>
         <button type="button" id="quitBtn">End shift</button>
       </div>
     </div>
+    <div class="toast" id="toast" role="status" hidden></div>
   </div>
 
   <div class="touch" aria-label="Touch controls">
@@ -219,9 +330,9 @@ kbd{font-family:var(--mono);font-size:12px;background:var(--chip);border:1px sol
     <section>
       <span class="label">Controls</span>
       <ul>
-        <li><b class="who1">P1</b>: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> to move, <kbd>E</kbd> or <kbd>Space</kbd> to grab and drop</li>
-        <li><b class="who2">P2</b>: arrow keys to move, <kbd>Enter</kbd> to grab and drop</li>
-        <li>Solo: either set works. <kbd>Esc</kbd> pauses.</li>
+        <li><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys to move, <kbd>E</kbd> or <kbd>Space</kbd> to grab and drop</li>
+        <li>Same keyboard, 2 players: P1 uses WASD + <kbd>E</kbd>, P2 uses arrows + <kbd>Enter</kbd></li>
+        <li><kbd>Esc</kbd> pauses (host only when online).</li>
       </ul>
     </section>
     <section>
@@ -242,652 +353,7 @@ kbd{font-family:var(--mono);font-size:12px;background:var(--chip);border:1px sol
     </section>
   </div>
 </div>
-
-<script>
-(() => {
-  const W = 960, H = 600, PROC = 1.0, PR = 18, REACH = 34, SPEED = 250;
-  const $ = s => document.querySelector(s);
-  const cv = $('#floor'), ctx = cv.getContext('2d');
-  let scale = 1;
-  const css = getComputedStyle(document.documentElement);
-  const C = {};
-  ['board','panel','chip','sunk','edge','copper','silk','muted','one','zero','danger','ok','gremlin','p1','p2'].forEach(k => C[k] = css.getPropertyValue('--' + k).trim());
-  const F = { display: '"Silkscreen", "Courier New", monospace', mono: '"IBM Plex Mono", Menlo, monospace', body: '"Chakra Petch", system-ui, sans-serif' };
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const lerp = (a, b, t) => a + (b - a) * clamp(t, 0, 1);
-  const rnd = (a, b) => a + Math.random() * (b - a);
-  const pick = a => a[Math.floor(Math.random() * a.length)];
-  const coarse = window.matchMedia('(pointer:coarse)').matches;
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  const GATE_FN = { NOT: i => i[0].v ^ 1, AND: i => i[0].v & i[1].v, OR: i => i[0].v | i[1].v };
-  const TABLES = { NOT: [[0,1],[1,0]], AND: [[0,0,0],[0,1,0],[1,0,0],[1,1,1]], OR: [[0,0,0],[0,1,1],[1,0,1],[1,1,1]] };
-  const GATE_PATH = {
-    AND: { body: 'M14 5H30A13 13 0 0 1 30 31H14Z', lead: 'M2 12H14M2 24H14M43 18H58' },
-    OR:  { body: 'M11 5Q32 5 44 18Q32 31 11 31Q19 18 11 5Z', lead: 'M2 12H15M2 24H15M44 18H58' },
-    NOT: { body: 'M14 5L40 18L14 31Z', lead: 'M2 18H14M48 18H58' }
-  };
-  const P2D = {};
-  for (const g in GATE_PATH) P2D[g] = { body: new Path2D(GATE_PATH[g].body), lead: new Path2D(GATE_PATH[g].lead) };
-
-  const SOURCES = [
-    { kind: 'src', v: 1, x: 95, y: 190, w: 110, h: 110, ref: 'J1' },
-    { kind: 'src', v: 0, x: 95, y: 410, w: 110, h: 110, ref: 'J2' }
-  ];
-  const WIN = { kind: 'win', x: 880, y: 240, w: 110, h: 170, ref: 'J3' };
-  const BIN = { kind: 'bin', x: 880, y: 480, w: 100, h: 90, ref: 'J4' };
-  const mkMachine = (gate, ref, y, locked) => ({ kind: 'gate', gate, ref, x: 470, y, w: 170, h: 116, need: gate === 'NOT' ? 1 : 2, inputs: [], proc: 0, out: null, jam: false, locked });
-  const mkPlayer = (i, x, y) => ({ i, x, y, fx: 1, fy: 0, hold: null, color: i ? C.p2 : C.p1, name: 'P' + (i + 1), near: null, moving: false });
-
-  let opts = { players: 1, len: 180, tables: true };
-  let S = null, muted = false, audio = null;
-
-  function fresh() {
-    const ps = [mkPlayer(0, 250, opts.players === 2 ? 230 : 300)];
-    if (opts.players === 2) ps.push(mkPlayer(1, 250, 370));
-    return {
-      running: false, paused: false, over: false, t: 0, len: opts.len, players: ps,
-      machines: [mkMachine('NOT', 'U1', 118, false), mkMachine('AND', 'U2', 300, false), mkMachine('OR', 'U3', 482, true)],
-      gremlins: [], orders: [], orderId: 0, nextOrder: 1.2, meter: 0, score: 0,
-      delivered: 0, missed: 0, wrong: 0, flips: 0, bonks: 0, floaters: [], orUnlocked: false, gremCount: 0, tables: opts.tables
-    };
-  }
-  const stations = () => [...SOURCES, ...S.machines, WIN, BIN];
-
-  /* ---------- input ---------- */
-  const keys = new Set();
-  const DUO = [
-    { up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'], act: ['KeyE', 'Space'] },
-    { up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'], act: ['Enter', 'NumpadEnter', 'Slash', 'ShiftRight', 'Numpad0'] }
-  ];
-  const SOLO = { up: ['KeyW', 'ArrowUp'], down: ['KeyS', 'ArrowDown'], left: ['KeyA', 'ArrowLeft'], right: ['KeyD', 'ArrowRight'], act: ['KeyE', 'Space', 'Enter', 'NumpadEnter', 'Slash', 'ShiftRight'] };
-  const binding = i => opts.players === 1 ? SOLO : DUO[i];
-  const ALL_KEYS = new Set([...Object.values(SOLO).flat(), ...DUO.flatMap(d => Object.values(d).flat())]);
-  const keyLabel = p => (coarse && p.i === 0) ? 'GRAB' : (opts.players === 2 && p.i === 1 ? 'Enter' : 'E');
-
-  window.addEventListener('keydown', e => {
-    if (!S || !S.running || S.over) return;
-    if (e.code === 'Escape' || e.code === 'KeyP') { if (!e.repeat) togglePause(); e.preventDefault(); return; }
-    if (ALL_KEYS.has(e.code)) e.preventDefault();
-    keys.add(e.code);
-    if (!e.repeat && !S.paused) S.players.forEach(p => { if (binding(p.i).act.includes(e.code)) act(p); });
-  });
-  window.addEventListener('keyup', e => keys.delete(e.code));
-  window.addEventListener('blur', () => keys.clear());
-
-  const touch = { x: 0, y: 0, id: null };
-  const pad = $('#pad'), knob = $('#knob');
-  function padMove(e) {
-    const r = pad.getBoundingClientRect();
-    let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
-    const max = r.width / 2 - 20, d = Math.hypot(dx, dy);
-    if (d > max) { dx = dx / d * max; dy = dy / d * max; }
-    knob.style.transform = `translate(${dx}px,${dy}px)`;
-    const m = Math.hypot(dx, dy) / max;
-    touch.x = m > 0.18 ? dx / max : 0; touch.y = m > 0.18 ? dy / max : 0;
-  }
-  pad.addEventListener('pointerdown', e => { touch.id = e.pointerId; try { pad.setPointerCapture(e.pointerId); } catch (_) {} padMove(e); e.preventDefault(); });
-  pad.addEventListener('pointermove', e => { if (e.pointerId === touch.id) padMove(e); });
-  const padEnd = e => { if (e.pointerId === touch.id) { touch.id = null; touch.x = touch.y = 0; knob.style.transform = ''; } };
-  pad.addEventListener('pointerup', padEnd); pad.addEventListener('pointercancel', padEnd);
-  $('#grab').addEventListener('pointerdown', e => { e.preventDefault(); if (S && S.running && !S.paused && !S.over) act(S.players[0]); });
-
-  function moveVec(p) {
-    const b = binding(p.i); let x = 0, y = 0;
-    if (b.left.some(k => keys.has(k))) x -= 1;
-    if (b.right.some(k => keys.has(k))) x += 1;
-    if (b.up.some(k => keys.has(k))) y -= 1;
-    if (b.down.some(k => keys.has(k))) y += 1;
-    if (p.i === 0 && (touch.x || touch.y)) { x = touch.x; y = touch.y; }
-    const m = Math.hypot(x, y); if (m > 1) { x /= m; y /= m; }
-    return [x, y];
-  }
-
-  /* ---------- world rules ---------- */
-  function pushOut(p) {
-    for (const s of stations()) {
-      const hw = s.w / 2 + PR, hh = s.h / 2 + PR, dx = p.x - s.x, dy = p.y - s.y;
-      if (Math.abs(dx) < hw && Math.abs(dy) < hh) {
-        const ox = hw - Math.abs(dx), oy = hh - Math.abs(dy);
-        if (ox < oy) p.x += dx < 0 ? -ox : ox; else p.y += dy < 0 ? -oy : oy;
-      }
-    }
-    p.x = clamp(p.x, PR + 4, W - PR - 4); p.y = clamp(p.y, PR + 4, H - PR - 4);
-  }
-  function nearest(p) {
-    let best = null, bd = REACH + PR;
-    for (const s of stations()) {
-      const cx = clamp(p.x, s.x - s.w / 2, s.x + s.w / 2), cy = clamp(p.y, s.y - s.h / 2, s.y + s.h / 2);
-      const d = Math.hypot(p.x - cx, p.y - cy);
-      if (d < bd) { bd = d; best = s; }
-    }
-    return best;
-  }
-  function hintFor(p, s) {
-    if (!s) return null;
-    if (s.kind === 'src') return p.hold ? null : 'grab a ' + s.v;
-    if (s.kind === 'gate') {
-      if (s.locked || s.jam || s.proc > 0) return null;
-      if (p.hold) return (!s.out && s.inputs.length < s.need) ? 'load input' : null;
-      if (s.out) return 'take output';
-      if (s.inputs.length) return 'take back';
-      return null;
-    }
-    if (s.kind === 'win') return p.hold ? 'deliver' : null;
-    if (s.kind === 'bin') return p.hold ? 'bin it' : null;
-    return null;
-  }
-  function float(x, y, text, color, big) { S.floaters.push({ x, y, text, color, big: !!big, life: big ? 2.2 : 1.2, max: big ? 2.2 : 1.2 }); }
-
-  function act(p) {
-    const s = p.near;
-    if (!s) return;
-    if (s.kind === 'src') {
-      if (p.hold) { float(p.x, p.y - 80, 'Hands full', C.muted); return; }
-      p.hold = { v: s.v, gate: null }; sfx('grab'); return;
-    }
-    if (s.kind === 'gate') {
-      if (s.locked) { float(s.x, s.y, 'Locked', C.muted); return; }
-      if (s.jam) { float(s.x, s.y - s.h / 2 - 30, 'Bonk Bitflip first!', C.danger); sfx('wrong'); return; }
-      if (s.proc > 0) { float(s.x, s.y - s.h / 2 - 30, 'Busy...', C.muted); return; }
-      if (p.hold) {
-        if (s.out) { float(s.x, s.y - s.h / 2 - 30, 'Take the output first', C.muted); return; }
-        if (s.inputs.length >= s.need) return;
-        s.inputs.push(p.hold); p.hold = null; sfx('load');
-        if (s.inputs.length === s.need) s.proc = PROC;
-      } else {
-        if (s.out) { p.hold = s.out; s.out = null; sfx('grab'); }
-        else if (s.inputs.length) { p.hold = s.inputs.pop(); sfx('grab'); }
-      }
-      return;
-    }
-    if (s.kind === 'win') {
-      if (!p.hold) { float(WIN.x, WIN.y - 110, 'Bring a finished bit', C.muted); return; }
-      deliver(p); return;
-    }
-    if (s.kind === 'bin' && p.hold) { p.hold = null; float(BIN.x, BIN.y - 70, 'Binned', C.muted); sfx('load'); }
-  }
-
-  function deliver(p) {
-    const b = p.hold; p.hold = null;
-    const match = S.orders.filter(o => o.gate === b.gate && o.v === b.v).sort((a, c) => a.life - c.life)[0];
-    if (match) {
-      S.orders.splice(S.orders.indexOf(match), 1);
-      const pts = 10 + Math.round(10 * match.life / match.max);
-      S.score += pts; S.delivered++; S.meter = Math.max(0, S.meter - 6);
-      removeCard(match.id, 'done');
-      float(WIN.x, WIN.y - 110, '+' + pts, C.ok); sfx('deliver');
-    } else {
-      S.wrong++; S.meter += 8;
-      float(WIN.x - 20, WIN.y - 110, b.gate ? 'No order wants ' + b.gate + ' = ' + b.v : 'Raw bit! Use a gate', C.danger);
-      sfx('wrong');
-    }
-  }
-
-  /* ---------- orders ---------- */
-  const rail = $('#orders'), noOrders = $('#noOrders');
-  function gateSVG(g) {
-    const bub = g === 'NOT' ? '<circle cx="44" cy="18" r="4"/>' : '';
-    return `<svg viewBox="0 0 60 36" aria-hidden="true"><path class="lead" d="${GATE_PATH[g].lead}"/><path class="body" d="${GATE_PATH[g].body}"/>${bub}</svg>`;
-  }
-  function syncEmpty() { noOrders.hidden = !!rail.querySelector('.order:not(.done):not(.gone)'); }
-  function addCard(o) {
-    const el = document.createElement('div');
-    el.className = 'order'; el.dataset.id = o.id;
-    el.innerHTML = `<div class="ord-top">${gateSVG(o.gate)}<span class="eq">=</span><b class="bit b${o.v}">${o.v}</b></div><div class="ord-name">${o.gate} gate</div><div class="bar"><i></i></div>`;
-    el.setAttribute('aria-label', `Order: ${o.gate} gate output ${o.v}`);
-    rail.appendChild(el); o.bar = el.querySelector('.bar i'); o.el = el; syncEmpty();
-  }
-  function removeCard(id, how) {
-    const el = rail.querySelector(`.order[data-id="${id}"]`);
-    if (!el) return;
-    el.classList.add(how); syncEmpty();
-    setTimeout(() => { el.remove(); syncEmpty(); }, reduce ? 0 : 320);
-  }
-  function clearCards() { rail.querySelectorAll('.order').forEach(e => e.remove()); syncEmpty(); }
-  function spawnOrder(force) {
-    const gates = ['NOT', 'AND']; if (S.orUnlocked) gates.push('OR');
-    let g, v, tries = 0;
-    do { g = force || pick(gates); v = Math.random() < 0.5 ? 0 : 1; tries++; }
-    while (tries < 8 && S.orders.some(o => o.gate === g && o.v === v));
-    const L = lerp(44, 24, S.t / S.len);
-    const o = { id: ++S.orderId, gate: g, v, life: L, max: L };
-    S.orders.push(o); addCard(o); sfx('order');
-  }
-
-  /* ---------- Bitflip ---------- */
-  function spawnGremlin() {
-    S.gremCount++;
-    S.gremlins.push({ x: W / 2 + rnd(-60, 60), y: 26, state: 'wander', tx: W / 2, ty: H / 2, timer: 1.4, cool: 1.5, target: null, stun: 0, kx: 0, ky: 0, jamM: null, wob: Math.random() * 6, dir: 1 });
-  }
-  const jamSpot = m => ({ x: m.x, y: m.y - m.h / 2 - 2 });
-  function decide(g, prog) {
-    const carriers = S.players.filter(p => p.hold);
-    const free = S.machines.filter(m => !m.locked && !m.jam && !S.gremlins.some(o => o !== g && o.target === m));
-    const r = Math.random(), hunt = lerp(0.35, 0.65, prog), jam = lerp(0.2, 0.35, prog);
-    g.state = 'wander';
-    if (carriers.length && r < hunt) { g.target = pick(carriers); g.timer = 3.5; }
-    else if (free.length && r < hunt + jam) { g.target = pick(free); g.timer = 7; }
-    else { g.target = null; g.tx = rnd(60, W - 60); g.ty = rnd(60, H - 60); g.timer = 2.5; }
-  }
-  function collide(g) {
-    for (const p of S.players) {
-      const dx = g.x - p.x, dy = g.y - p.y, d = Math.hypot(dx, dy) || 1;
-      if (d >= 36) continue;
-      if (p.hold && g.cool <= 0) {
-        p.hold.v ^= 1; S.flips++; g.cool = 2.5;
-        float(p.x, p.y - 86, 'FLIPPED!', C.gremlin); sfx('flip');
-        if (g.state !== 'jam') { g.state = 'flee'; g.target = null; g.tx = clamp(g.x + dx / d * 260, 40, W - 40); g.ty = clamp(g.y + dy / d * 260, 40, H - 40); g.timer = 1.4; }
-      } else if (!p.hold) {
-        if (g.jamM) { g.jamM.jam = false; g.jamM = null; }
-        g.state = 'stun'; g.stun = 2.2; g.target = null; g.kx = dx / d * 520; g.ky = dy / d * 520;
-        S.bonks++; float(g.x, g.y - 40, 'BONK!', C.silk); sfx('bonk');
-        return;
-      }
-    }
-  }
-  function updateGremlin(g, dt, prog) {
-    g.wob += dt * 8; g.cool -= dt;
-    g.x += g.kx * dt; g.y += g.ky * dt;
-    const f = Math.exp(-5 * dt); g.kx *= f; g.ky *= f;
-    g.x = clamp(g.x, 20, W - 20); g.y = clamp(g.y, 20, H - 20);
-    if (g.state === 'stun') { g.stun -= dt; if (g.stun <= 0) { g.state = 'wander'; g.timer = 0; } return; }
-    if (g.state === 'jam') {
-      g.timer -= dt; const sp = jamSpot(g.jamM); g.x = sp.x; g.y = sp.y;
-      if (g.timer <= 0) { g.jamM.jam = false; g.jamM = null; g.state = 'wander'; g.target = null; g.timer = 0; }
-      collide(g); return;
-    }
-    g.timer -= dt; if (g.timer <= 0) decide(g, prog);
-    let tx, ty;
-    if (g.target && g.target.kind === 'gate') { const sp = jamSpot(g.target); tx = sp.x; ty = sp.y; }
-    else if (g.target) { if (!g.target.hold) g.timer = 0; tx = g.target.x; ty = g.target.y; }
-    else { tx = g.tx; ty = g.ty; }
-    const dx = tx - g.x, dy = ty - g.y, d = Math.hypot(dx, dy);
-    const sp = lerp(105, 170, prog) * (g.state === 'flee' ? 1.5 : 1);
-    if (d > 3) { const st = Math.min(d, sp * dt); g.x += dx / d * st; g.y += dy / d * st; if (Math.abs(dx) > 2) g.dir = dx < 0 ? -1 : 1; }
-    if (g.target && g.target.kind === 'gate' && d < 12) {
-      const m = g.target;
-      if (!m.locked && !m.jam) { m.jam = true; g.jamM = m; g.state = 'jam'; g.timer = lerp(9, 14, prog); float(m.x + 110, m.y - m.h / 2 - 10, 'JAMMED!', C.danger); sfx('jam'); }
-      else g.timer = 0;
-    } else if (!g.target && d < 6) g.timer = Math.min(g.timer, 0.3);
-    collide(g);
-  }
-
-  /* ---------- update ---------- */
-  function update(dt) {
-    S.t += dt; const prog = S.t / S.len;
-    if (S.gremCount === 0 && prog >= 0.08) { spawnGremlin(); float(W / 2, H / 2 - 20, 'BITFLIP GOT IN!', C.gremlin, true); sfx('jam'); }
-    if (!S.orUnlocked && prog >= 0.2) { S.orUnlocked = true; S.machines[2].locked = false; float(W / 2, H / 2 - 20, 'OR GATE ONLINE', C.ok, true); sfx('unlock'); spawnOrder('OR'); }
-    if (S.gremCount === 1 && prog >= 0.55) { spawnGremlin(); float(W / 2, H / 2 - 20, 'A SECOND BITFLIP!', C.gremlin, true); sfx('jam'); }
-
-    for (const p of S.players) {
-      const [x, y] = moveVec(p);
-      p.moving = !!(x || y);
-      if (p.moving) { p.fx = x; p.fy = y; p.x += x * SPEED * dt; p.y += y * SPEED * dt; }
-      pushOut(p);
-    }
-    if (S.players.length === 2) {
-      const [a, b] = S.players, dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy) || 1;
-      if (d < PR * 2) { const o = (PR * 2 - d) / 2; a.x -= dx / d * o; a.y -= dy / d * o; b.x += dx / d * o; b.y += dy / d * o; pushOut(a); pushOut(b); }
-    }
-    S.players.forEach(p => p.near = nearest(p));
-
-    for (const m of S.machines) {
-      if (m.proc > 0 && !m.jam) {
-        m.proc -= dt;
-        if (m.proc <= 0) { m.proc = 0; m.out = { v: GATE_FN[m.gate](m.inputs), gate: m.gate }; m.inputs = []; sfx('ding'); }
-      }
-    }
-
-    for (let k = S.orders.length - 1; k >= 0; k--) {
-      const o = S.orders[k]; o.life -= dt;
-      if (o.life <= 0) {
-        S.orders.splice(k, 1); removeCard(o.id, 'gone');
-        S.missed++; S.meter += 22;
-        float(WIN.x - 30, WIN.y - 110, 'MISSED ' + o.gate + ' = ' + o.v, C.danger); sfx('miss');
-      } else {
-        o.bar.style.width = (o.life / o.max * 100).toFixed(1) + '%';
-        o.el.classList.toggle('urgent', o.life < 8);
-      }
-    }
-    S.nextOrder -= dt;
-    const maxO = prog < 0.3 ? 3 : 4;
-    if (S.nextOrder <= 0) { if (S.orders.length < maxO) spawnOrder(); S.nextOrder = lerp(13, 6.5, prog); }
-    if (S.orders.length === 0 && S.nextOrder > 1.5) S.nextOrder = 1.5;
-
-    S.gremlins.forEach(g => updateGremlin(g, dt, prog));
-
-    for (let k = S.floaters.length - 1; k >= 0; k--) {
-      const f = S.floaters[k]; f.life -= dt; if (!f.big && !reduce) f.y -= 30 * dt;
-      if (f.life <= 0) S.floaters.splice(k, 1);
-    }
-    S.meter = clamp(S.meter, 0, 100);
-    hud();
-    if (S.meter >= 100) end(false);
-    else if (S.t >= S.len) end(true);
-  }
-
-  /* ---------- drawing ---------- */
-  function rr(x, y, w, h, r) {
-    ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
-  }
-  function mulberry(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
-  let bg = null;
-  function buildBg() {
-    bg = document.createElement('canvas'); bg.width = W * 2; bg.height = H * 2;
-    const g = bg.getContext('2d'); g.scale(2, 2);
-    g.fillStyle = C.board; g.fillRect(0, 0, W, H);
-    g.fillStyle = 'rgba(233,239,230,0.05)';
-    for (let x = 15; x < W; x += 30) for (let y = 15; y < H; y += 30) g.fillRect(x - 1, y - 1, 2, 2);
-    const r = mulberry(11); g.lineCap = 'round'; g.lineJoin = 'round';
-    for (let n = 0; n < 48; n++) {
-      let x = Math.round(r() * 32) * 30, y = Math.round(r() * 20) * 30;
-      g.beginPath(); g.moveTo(x, y);
-      const segs = 2 + Math.floor(r() * 3);
-      for (let s = 0; s < segs; s++) {
-        const dir = Math.floor(r() * 3), len = (2 + Math.floor(r() * 6)) * 30, sg = r() < 0.5 ? -1 : 1;
-        if (dir === 0) x += sg * len; else if (dir === 1) y += sg * len; else { x += len * 0.7 * sg; y += len * 0.7 * (r() < 0.5 ? -1 : 1); }
-        g.lineTo(x, y);
-      }
-      g.strokeStyle = 'rgba(200,135,63,0.15)'; g.lineWidth = 3; g.stroke();
-      g.beginPath(); g.arc(x, y, 5, 0, Math.PI * 2); g.strokeStyle = 'rgba(200,135,63,0.3)'; g.lineWidth = 2; g.stroke();
-    }
-    g.strokeStyle = 'rgba(233,239,230,0.12)'; g.lineWidth = 1.5; g.strokeRect(10, 10, W - 20, H - 20);
-    g.fillStyle = 'rgba(233,239,230,0.25)'; g.font = '10px ' + F.display; g.textBaseline = 'alphabetic';
-    g.textAlign = 'left'; g.fillText('LOGIC FOUNDRY  REV A1.2', 22, H - 20);
-    g.textAlign = 'right'; g.fillText('CPU CITADEL  SUBLEVEL 2', W - 22, H - 20);
-  }
-
-  function label(text, x, y, color, align) {
-    ctx.font = '11px ' + F.display; ctx.fillStyle = color || C.silk; ctx.textAlign = align || 'left'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(text, x, y);
-  }
-  function drawBit(x, y, b, r, badge) {
-    const col = b.v ? C.one : C.zero;
-    ctx.save();
-    ctx.shadowColor = col; ctx.shadowBlur = 14;
-    ctx.fillStyle = C.sunk; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0; ctx.lineWidth = 2.5; ctx.strokeStyle = col; ctx.stroke();
-    ctx.fillStyle = col; ctx.font = `700 ${Math.round(r * 1.3)}px ${F.mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(b.v), x, y + 1);
-    if (badge) {
-      const t = b.gate || 'RAW';
-      ctx.font = '9px ' + F.display; const tw = ctx.measureText(t).width + 8;
-      ctx.fillStyle = b.gate ? C.silk : C.muted; rr(x - tw / 2, y + r + 3, tw, 13, 3); ctx.fill();
-      ctx.fillStyle = C.sunk; ctx.fillText(t, x, y + r + 10);
-    }
-    ctx.restore();
-  }
-  function drawSource(s) {
-    const L = s.x - s.w / 2, T = s.y - s.h / 2;
-    ctx.fillStyle = C.chip; rr(L, T, s.w, s.h, 8); ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = C.copper; ctx.stroke();
-    label(`${s.ref} · SOURCE`, L, T - 8);
-    const col = s.v ? C.one : C.zero;
-    ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 18;
-    ctx.fillStyle = col; ctx.font = `700 56px ${F.mono}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(String(s.v), s.x, s.y - 6); ctx.restore();
-    ctx.font = `500 12px ${F.body}`; ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(`endless ${s.v}s`, s.x, T + s.h - 12);
-  }
-  const slotPos = (m, k) => m.need === 1 ? [m.x - 64, m.y] : [m.x - 64, m.y - 26 + 52 * k];
-  function drawGateIcon(g, cx, cy, s, color) {
-    ctx.save(); ctx.translate(cx - 30 * s, cy - 18 * s); ctx.scale(s, s);
-    ctx.lineWidth = 2; ctx.strokeStyle = C.copper; ctx.stroke(P2D[g].lead);
-    ctx.lineWidth = 2.4; ctx.strokeStyle = color; ctx.fillStyle = 'rgba(233,239,230,0.06)';
-    ctx.fill(P2D[g].body); ctx.stroke(P2D[g].body);
-    if (g === 'NOT') { ctx.beginPath(); ctx.arc(44, 18, 4, 0, Math.PI * 2); ctx.stroke(); }
-    ctx.restore();
-  }
-  function drawMachine(m) {
-    const L = m.x - m.w / 2, T = m.y - m.h / 2, R = L + m.w, B = T + m.h;
-    ctx.fillStyle = C.copper;
-    for (let px = L + 12; px < R - 8; px += 16) { ctx.fillRect(px, T - 6, 7, 6); ctx.fillRect(px, B, 7, 6); }
-    ctx.fillStyle = C.chip; rr(L, T, m.w, m.h, 6); ctx.fill();
-    ctx.lineWidth = m.jam ? 3 : 1.5; ctx.strokeStyle = m.jam ? C.danger : C.edge; ctx.stroke();
-    ctx.fillStyle = C.board; ctx.beginPath(); ctx.arc(L, m.y, 8, -Math.PI / 2, Math.PI / 2); ctx.fill();
-    label(`${m.ref} · ${m.gate}`, L, T - 12);
-    drawGateIcon(m.gate, m.x - 2, m.y - 4, 1.25, C.silk);
-    for (let k = 0; k < m.need; k++) {
-      const [sx, sy] = slotPos(m, k);
-      if (m.inputs[k]) drawBit(sx, sy, m.inputs[k], 13, false);
-      else {
-        ctx.save(); ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = C.muted;
-        ctx.beginPath(); ctx.arc(sx, sy, 13, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-        ctx.font = '10px ' + F.display; ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(m.need === 1 ? 'A' : 'AB'[k], sx, sy + 1);
-      }
-    }
-    const ox = m.x + 66, oy = m.y - 6;
-    if (m.out) drawBit(ox, oy, m.out, 13, true);
-    else {
-      ctx.save(); ctx.setLineDash([4, 4]); ctx.lineWidth = 1.5; ctx.strokeStyle = C.muted;
-      ctx.beginPath(); ctx.arc(ox, oy, 13, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
-      ctx.font = '10px ' + F.display; ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('Q', ox, oy + 1);
-    }
-    if (m.proc > 0) {
-      ctx.fillStyle = C.sunk; rr(L + 12, B - 13, m.w - 24, 5, 2); ctx.fill();
-      ctx.fillStyle = m.jam ? C.danger : C.one; rr(L + 12, B - 13, (m.w - 24) * (1 - m.proc / PROC), 5, 2); ctx.fill();
-    }
-    if (m.locked) {
-      ctx.fillStyle = 'rgba(6,22,20,0.82)'; rr(L - 2, T - 8, m.w + 4, m.h + 16, 6); ctx.fill();
-      ctx.font = '700 16px ' + F.display; ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('LOCKED', m.x, m.y - 6);
-      ctx.font = `500 12px ${F.body}`; ctx.fillText('comes online mid-shift', m.x, m.y + 16);
-    }
-    if (S.tables && !m.locked) {
-      const tx = R + 18, ty = T + 8, cw = 17, rh = 17;
-      const cols = m.gate === 'NOT' ? ['A', 'Q'] : ['A', 'B', 'Q'];
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = '10px ' + F.display; ctx.fillStyle = C.muted;
-      cols.forEach((c, k) => ctx.fillText(c, tx + k * cw + cw / 2, ty + rh / 2));
-      ctx.strokeStyle = 'rgba(233,239,230,0.25)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(tx, ty + rh); ctx.lineTo(tx + cols.length * cw, ty + rh); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(tx + (cols.length - 1) * cw, ty + 2); ctx.lineTo(tx + (cols.length - 1) * cw, ty + rh * (TABLES[m.gate].length + 1)); ctx.stroke();
-      ctx.font = `700 12px ${F.mono}`;
-      TABLES[m.gate].forEach((row, ri) => row.forEach((v, k) => { ctx.fillStyle = v ? C.one : C.zero; ctx.fillText(String(v), tx + k * cw + cw / 2, ty + rh * (ri + 1) + rh / 2 + 1); }));
-    }
-  }
-  function drawWin() {
-    const L = WIN.x - WIN.w / 2, T = WIN.y - WIN.h / 2;
-    ctx.fillStyle = C.chip; rr(L, T, WIN.w, WIN.h, 8); ctx.fill();
-    ctx.save(); rr(L, T, WIN.w, 34, 8); ctx.clip();
-    ctx.fillStyle = C.one; ctx.fillRect(L, T, WIN.w, 34);
-    ctx.strokeStyle = C.sunk; ctx.lineWidth = 7;
-    for (let x = L - 40; x < L + WIN.w + 40; x += 20) { ctx.beginPath(); ctx.moveTo(x, T + 34); ctx.lineTo(x + 34, T); ctx.stroke(); }
-    ctx.restore();
-    rr(L, T, WIN.w, WIN.h, 8); ctx.lineWidth = 2; ctx.strokeStyle = C.copper; ctx.stroke();
-    label(`${WIN.ref} · ORDERS`, L, T - 8);
-    ctx.fillStyle = C.silk; ctx.beginPath(); ctx.moveTo(WIN.x - 16, WIN.y - 8); ctx.lineTo(WIN.x + 14, WIN.y + 12); ctx.lineTo(WIN.x - 16, WIN.y + 32); ctx.closePath(); ctx.fill();
-    ctx.font = `500 12px ${F.body}`; ctx.fillStyle = C.muted; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText('deliver gate bits', WIN.x, T + WIN.h - 14);
-  }
-  function drawBin() {
-    const L = BIN.x - BIN.w / 2, T = BIN.y - BIN.h / 2;
-    ctx.fillStyle = C.chip; rr(L, T, BIN.w, BIN.h, 8); ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = C.edge; ctx.stroke();
-    label(`${BIN.ref} · BIT BIN`, L, T - 8);
-    ctx.strokeStyle = C.muted; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.moveTo(BIN.x - 16, BIN.y - 18); ctx.lineTo(BIN.x - 12, BIN.y + 16); ctx.lineTo(BIN.x + 12, BIN.y + 16); ctx.lineTo(BIN.x + 16, BIN.y - 18); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(BIN.x - 20, BIN.y - 18); ctx.lineTo(BIN.x + 20, BIN.y - 18); ctx.stroke();
-  }
-  function highlight(s, color) {
-    ctx.save(); ctx.setLineDash([6, 5]); ctx.lineWidth = 2; ctx.strokeStyle = color;
-    rr(s.x - s.w / 2 - 7, s.y - s.h / 2 - 7, s.w + 14, s.h + 14, 10); ctx.stroke(); ctx.restore();
-  }
-  function drawPlayer(p) {
-    const bob = p.moving && !reduce ? Math.sin(performance.now() / 90) * 1.5 : 0;
-    const x = p.x, y = p.y + bob;
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(p.x, p.y + PR - 2, 16, 5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(x, y, PR, 0, Math.PI * 2); ctx.fill();
-    ctx.lineWidth = 2; ctx.strokeStyle = C.sunk; ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(x - 15, y - 10); ctx.lineTo(x + 3 + p.fx * 4, y - 40); ctx.lineTo(x + 15, y - 10); ctx.closePath();
-    ctx.fillStyle = p.color; ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = C.copper; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x - 13, y - 13); ctx.lineTo(x + 13, y - 13); ctx.stroke();
-    ctx.fillStyle = C.sunk;
-    const ex = p.fx * 5, ey = p.fy * 3;
-    ctx.beginPath(); ctx.arc(x - 5 + ex, y + 1 + ey, 2.6, 0, Math.PI * 2); ctx.arc(x + 5 + ex, y + 1 + ey, 2.6, 0, Math.PI * 2); ctx.fill();
-    ctx.font = '10px ' + F.display; ctx.fillStyle = p.color; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-    ctx.fillText(p.name, p.x, p.y + PR + 13);
-    if (p.hold) drawBit(x, y - 64, p.hold, 13, true);
-    const h = S.running ? hintFor(p, p.near) : null;
-    if (h) {
-      const t = `[${keyLabel(p)}] ${h}`;
-      ctx.font = `600 12px ${F.body}`; const tw = ctx.measureText(t).width + 12;
-      const hx = clamp(p.x, tw / 2 + 4, W - tw / 2 - 4), hy = p.y + PR + 20;
-      ctx.fillStyle = 'rgba(6,22,20,0.85)'; rr(hx - tw / 2, hy, tw, 19, 4); ctx.fill();
-      ctx.strokeStyle = p.color; ctx.lineWidth = 1; ctx.stroke();
-      ctx.fillStyle = C.silk; ctx.textBaseline = 'middle'; ctx.fillText(t, hx, hy + 10);
-    }
-  }
-  function drawGremlin(g) {
-    const bob = reduce ? 0 : Math.sin(g.wob) * 2;
-    ctx.save(); ctx.translate(g.x, g.y + bob);
-    ctx.fillStyle = 'rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(0, 18 - bob, 15, 5, 0, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath();
-    for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2 + g.wob * 0.05, r = i % 2 ? 12 : 19; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); }
-    ctx.closePath();
-    ctx.fillStyle = C.gremlin; ctx.shadowColor = C.gremlin; ctx.shadowBlur = g.state === 'stun' ? 0 : 14; ctx.fill(); ctx.shadowBlur = 0;
-    ctx.fillStyle = C.silk; ctx.beginPath(); ctx.arc(-5, -3, 4.5, 0, Math.PI * 2); ctx.arc(5, -3, 4.5, 0, Math.PI * 2); ctx.fill();
-    if (g.state === 'stun') {
-      ctx.strokeStyle = C.sunk; ctx.lineWidth = 1.8;
-      [-5, 5].forEach(ex => { ctx.beginPath(); ctx.moveTo(ex - 2.5, -5.5); ctx.lineTo(ex + 2.5, -0.5); ctx.moveTo(ex + 2.5, -5.5); ctx.lineTo(ex - 2.5, -0.5); ctx.stroke(); });
-      ctx.fillStyle = C.one;
-      for (let k = 0; k < 3; k++) { const a = g.wob * 0.7 + k * 2.09; ctx.beginPath(); ctx.arc(Math.cos(a) * 18, -26 + Math.sin(a) * 5, 3, 0, Math.PI * 2); ctx.fill(); }
-    } else {
-      ctx.fillStyle = C.sunk; ctx.beginPath(); ctx.arc(-5 + g.dir * 1.6, -2.5, 2, 0, Math.PI * 2); ctx.arc(5 + g.dir * 1.6, -2.5, 2, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = C.sunk; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 4, 6, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
-      ctx.font = '9px ' + F.display; ctx.fillStyle = C.gremlin; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-      ctx.fillText('BITFLIP', 0, -25);
-    }
-    ctx.restore();
-  }
-  function drawFloaters() {
-    for (const f of S.floaters) {
-      ctx.globalAlpha = clamp(f.life / f.max * 1.6, 0, 1);
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      if (f.big) {
-        ctx.font = '700 28px ' + F.display; const tw = ctx.measureText(f.text).width + 40;
-        ctx.fillStyle = 'rgba(6,22,20,0.85)'; rr(f.x - tw / 2, f.y - 26, tw, 52, 6); ctx.fill();
-        ctx.strokeStyle = f.color; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y + 1);
-      } else {
-        ctx.font = '700 15px ' + F.display; ctx.lineWidth = 4; ctx.strokeStyle = C.sunk; ctx.strokeText(f.text, f.x, f.y);
-        ctx.fillStyle = f.color; ctx.fillText(f.text, f.x, f.y);
-      }
-      ctx.globalAlpha = 1;
-    }
-  }
-  function draw() {
-    ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    ctx.drawImage(bg, 0, 0, W, H);
-    SOURCES.forEach(drawSource);
-    S.machines.forEach(drawMachine);
-    drawWin(); drawBin();
-    if (S.running) S.players.forEach(p => { if (p.near && hintFor(p, p.near)) highlight(p.near, p.color); });
-    S.players.forEach(drawPlayer);
-    S.gremlins.forEach(drawGremlin);
-    drawFloaters();
-  }
-
-  /* ---------- HUD + flow ---------- */
-  const fmt = s => { s = Math.max(0, Math.ceil(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
-  const timeEl = $('#time'), scoreEl = $('#score'), meterEl = $('#meter'), meterFill = $('#meterFill'), meterPct = $('#meterPct');
-  function hud() {
-    timeEl.textContent = fmt(S.len - S.t);
-    scoreEl.textContent = S.score;
-    const m = Math.round(S.meter);
-    meterFill.style.width = m + '%'; meterPct.textContent = m + '%';
-    meterEl.classList.toggle('hot', m >= 70);
-  }
-  const setup = $('#setup'), results = $('#results'), pauseOv = $('#pauseOv'), pauseBtn = $('#pauseBtn');
-  const scrollTo = el => el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' });
-  function readOpts() {
-    opts.players = +document.querySelector('input[name=players]:checked').value;
-    opts.len = +document.querySelector('input[name=len]:checked').value;
-    opts.tables = document.querySelector('input[name=tables]:checked').value === 'on';
-  }
-  function start() {
-    readOpts(); initAudio(); clearCards(); keys.clear();
-    S = fresh(); S.running = true; hud();
-    setup.hidden = true; results.hidden = true; pauseOv.hidden = true;
-    pauseBtn.disabled = false; pauseBtn.textContent = 'Pause';
-    scrollTo($('#stage')); try { cv.focus({ preventScroll: true }); } catch (_) {}
-  }
-  function togglePause() {
-    if (!S || !S.running || S.over) return;
-    S.paused = !S.paused; pauseOv.hidden = !S.paused; pauseBtn.textContent = S.paused ? 'Resume' : 'Pause';
-    keys.clear();
-    if (!S.paused) { try { cv.focus({ preventScroll: true }); } catch (_) {} }
-  }
-  function end(win, quit) {
-    S.over = true; S.running = false; S.paused = false; pauseOv.hidden = true; pauseBtn.disabled = true; keys.clear();
-    S.gremlins.forEach(g => { if (g.jamM) g.jamM.jam = false; });
-    const mins = Math.max(S.t / 60, 0.5), rate = S.delivered / mins;
-    const stars = win ? (rate >= 4 ? 3 : rate >= 2.5 ? 2 : 1) : 0;
-    $('#resTitle').textContent = win ? 'Shift complete' : quit ? 'Shift ended early' : 'The foundry went dark';
-    $('#resSub').textContent = win
-      ? `You held the Null Meter under 100% for the whole ${fmt(S.len)} shift.`
-      : quit ? `You clocked out at ${fmt(S.t)}.` : `The Null Meter hit 100% at ${fmt(S.t)} into the shift.`;
-    document.querySelectorAll('#leds .led').forEach((l, k) => l.classList.toggle('on', k < stars));
-    const rows = [['Orders delivered', S.delivered], ['Orders missed', S.missed], ['Wrong deliveries', S.wrong], ['Bits flipped by Bitflip', S.flips], ['Bonks landed', S.bonks], ['Score', S.score]];
-    $('#resGrid').innerHTML = rows.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('');
-    S.orders = []; clearCards();
-    results.hidden = false; setup.hidden = true;
-    sfx(win ? 'win' : 'lose'); scrollTo(results);
-  }
-  $('#startBtn').addEventListener('click', start);
-  $('#againBtn').addEventListener('click', start);
-  $('#settingsBtn').addEventListener('click', () => { results.hidden = true; setup.hidden = false; idle(); scrollTo(setup); });
-  pauseBtn.addEventListener('click', togglePause);
-  $('#resumeBtn').addEventListener('click', togglePause);
-  $('#quitBtn').addEventListener('click', () => end(false, true));
-  const muteBtn = $('#muteBtn');
-  muteBtn.addEventListener('click', () => { muted = !muted; muteBtn.textContent = muted ? 'Sound off' : 'Sound on'; if (!muted) initAudio(); });
-
-  /* ---------- sound ---------- */
-  function initAudio() { if (audio) { if (audio.state === 'suspended') audio.resume(); return; } try { audio = new (window.AudioContext || window.webkitAudioContext)(); } catch (_) { audio = null; } }
-  const SFX = { grab: [520, .06, 'square'], load: [380, .07, 'square'], ding: [880, .12, 'triangle'], deliver: [1040, .16, 'triangle'], wrong: [170, .22, 'sawtooth'], miss: [130, .3, 'sawtooth'], flip: [300, .18, 'square'], bonk: [210, .1, 'triangle'], jam: [150, .25, 'square'], order: [660, .05, 'sine'], win: [784, .45, 'triangle'], lose: [110, .6, 'sawtooth'], unlock: [700, .22, 'triangle'] };
-  function sfx(n) {
-    if (muted || !audio) return; const s = SFX[n]; if (!s) return;
-    try {
-      const t = audio.currentTime, o = audio.createOscillator(), g = audio.createGain();
-      o.type = s[2]; o.frequency.setValueAtTime(s[0], t);
-      if (n === 'deliver' || n === 'win' || n === 'unlock') o.frequency.exponentialRampToValueAtTime(s[0] * 1.5, t + s[1]);
-      if (n === 'flip' || n === 'lose' || n === 'miss') o.frequency.exponentialRampToValueAtTime(Math.max(40, s[0] * 0.5), t + s[1]);
-      g.gain.setValueAtTime(0.07, t); g.gain.exponentialRampToValueAtTime(0.0001, t + s[1]);
-      o.connect(g).connect(audio.destination); o.start(t); o.stop(t + s[1] + 0.02);
-    } catch (_) {}
-  }
-
-  /* ---------- boot ---------- */
-  function idle() {
-    readOpts(); S = fresh();
-    S.machines[0].out = { v: 1, gate: 'NOT' };
-    S.machines[1].inputs = [{ v: 1, gate: null }];
-    S.players[0].hold = { v: 1, gate: null };
-    S.players[0].x = 290; S.players[0].y = 300;
-    hud();
-  }
-  function resize() {
-    const r = cv.getBoundingClientRect(); const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    cv.width = Math.max(1, Math.round(r.width * dpr)); cv.height = Math.max(1, Math.round(r.height * dpr));
-    scale = cv.width / W;
-  }
-  document.querySelectorAll('#setup input').forEach(i => i.addEventListener('change', () => { if (!S.running) idle(); }));
-  buildBg(); idle(); resize();
-  if (window.ResizeObserver) new ResizeObserver(resize).observe($('#stage')); else window.addEventListener('resize', resize);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(buildBg);
-  let last = performance.now();
-  function frame(now) {
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (S.running && !S.paused && !S.over) update(dt);
-    draw(); requestAnimationFrame(frame);
-  }
-  requestAnimationFrame(frame);
-})();
-</script>
+<script src="net.js"></script>
+<script src="game.js"></script>
 </body>
 </html>
